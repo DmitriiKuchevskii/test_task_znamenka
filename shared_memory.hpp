@@ -13,6 +13,13 @@
 #include <semaphore.h>
 #include <unistd.h>
 
+#ifdef _ENABLE_LOGGING_
+#define LOGGER std::cout
+#else
+std::ofstream __null_stream__;
+#define LOGGER __null_stream__
+#endif
+
 inline size_t get_file_size(const std::string& file_name)
 {
     std::ifstream file_stream(file_name, std::ios::binary);

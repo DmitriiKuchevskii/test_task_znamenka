@@ -9,7 +9,7 @@ private:
         m_sh_mem_data(
             SharedMemory<char>::open(Server::SERVER_SHARED_MEMORY_DATA_NAME)
         ),
-        m_sh_mem_sync_objs(
+        m_sh_mem_sync(
             SharedMemory<SharedMemorySyncObjects>::open(Server::SERVER_SHARED_MEMORY_SYNC_NAME)
         ),
         m_recived_file_name(std::move(recived_file_name)),
@@ -21,17 +21,19 @@ public:
                                                  bool start_broadcast = false)
     {
         size_t broadcast_file_size = connect(start_broadcast);
-        std::cout << "Client connected.\nBroadcast " << (!start_broadcast ? "not " : "") << "started.\n";
+        LOGGER << "Client connected.\nBroadcast " << (!start_broadcast ? "not " : "") << "started.\n";
         if (!start_broadcast)
-            std::cout << "Should you want to run broadcasting, you need to provide --start option for client.\n";
-        std::cout << "Client will write its output into file '" << recived_file_name << "'\n";
+            LOGGER << "Should you want to run broadcasting, you need to provide --start option for client.\n";
+        LOGGER << "Client will write its output into file '" << recived_file_name << "'\n";
         return std::shared_ptr<Client>(new Client(recived_file_name, broadcast_file_size));
     }
 
 private:
     inline static size_t connect(bool start_broadcast)
     {
-        auto sh_mem = SharedMemory<Server::ConnectData>::open(Server::SERVER_SHARED_MEMORY_CONNECT_DATA_NAME);
+        auto sh_mem = SharedMemory<Server::ConnectData>::open(
+            Server::SERVER_SHARED_MEMORY_CONNECT_DATA_NAME
+        );
         auto client_connect_data = sh_mem->data();
         pthread_mutex_lock(&client_connect_data->mutex);
         {
@@ -59,7 +61,7 @@ public:
 private:
     inline void recive(std::ostream& file_stream, size_t size)
     {
-        SharedMemorySyncObjects* sync = m_sh_mem_sync_objs->data();
+        auto sync = m_sh_mem_sync->data();
 
         pthread_mutex_lock(&sync->mutex);
         {
@@ -82,7 +84,7 @@ private:
 
 private:
     std::shared_ptr<SharedMemory<char>> m_sh_mem_data;
-    std::shared_ptr<SharedMemory<SharedMemorySyncObjects>> m_sh_mem_sync_objs;
+    std::shared_ptr<SharedMemory<SharedMemorySyncObjects>> m_sh_mem_sync;
     std::string m_recived_file_name;
     size_t m_recived_file_size;
 };
