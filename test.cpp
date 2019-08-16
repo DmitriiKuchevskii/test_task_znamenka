@@ -3,7 +3,7 @@
 constexpr char SHARED_MEMORY_TEST_SYNC_NAME[] = "/test_sync";
 constexpr char TEST_BROADCAST_FILE_NAME[] = "test_broadcast_file.broadcast_data";
 constexpr size_t TEST_BROADCAST_FILE_SIZE = 1024 * 1024 * 100;
-constexpr unsigned TEST_CLIENTS_NUMBER = 10;
+constexpr unsigned TEST_CLIENTS_NUMBER = 40;
 
 struct TestSync
 {
