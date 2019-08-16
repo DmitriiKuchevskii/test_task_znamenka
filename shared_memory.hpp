@@ -64,6 +64,7 @@ struct SharedMemorySyncObjects
     pthread_mutex_t mutex;
     pthread_cond_t  cond_var;
     pthread_barrier_t barier;
+    pthread_barrier_t finish_barier;
     bool write_compleate;
     unsigned read_compleate;
 };

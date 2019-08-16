@@ -81,6 +81,7 @@ public:
     {
         unsigned clients_number = wait_for_clients();
         m_sh_mem_sync->data()->barier = get_ipc_barier(clients_number);
+        m_sh_mem_sync->data()->finish_barier = get_ipc_barier(clients_number);
 
         std::ifstream file_stream(m_broadcast_file_name, std::ios::binary);
         size_t file_size = get_file_size(m_broadcast_file_name);
@@ -96,6 +97,8 @@ public:
             m_sh_mem_data->resize(remain);
             broadcast_data(file_stream, remain, clients_number);
         }
+
+        pthread_barrier_wait(&m_sh_mem_sync->data()->finish_barier);
     }
 
 private:

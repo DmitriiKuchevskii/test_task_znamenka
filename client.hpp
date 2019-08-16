@@ -56,6 +56,8 @@ public:
         size_t remain = m_recived_file_size % m_sh_mem_data->size();
         if (remain)
             recive(file, remain);
+
+        pthread_barrier_wait(&m_sh_mem_sync->data()->finish_barier);
     }
 
 private:
