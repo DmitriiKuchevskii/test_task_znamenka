@@ -52,7 +52,7 @@ int run_client()
     return 0;
 }
 
-std::string create_tet_file(bool force_recreate = false)
+std::string create_test_file(bool force_recreate = false)
 {
     if (!force_recreate && std::ifstream(TEST_BROADCAST_FILE_NAME, std::ios::binary).good())
         return TEST_BROADCAST_FILE_NAME;
@@ -92,6 +92,15 @@ void compare_files()
     }
 }
 
+void remove_files()
+{
+    for (size_t i = 1; i <= TEST_CLIENTS_NUMBER; ++i)
+    {
+        std::string result_file = std::to_string(i) + ".broadcast_result";
+        remove(result_file.c_str());
+    }
+}
+
 int main(int argc, char** argv)
 {
     try
@@ -99,7 +108,7 @@ int main(int argc, char** argv)
         init_test_shared_memory_sync();
 
         // Init server shared memory
-        auto server = Server::create(create_tet_file());
+        auto server = Server::create(create_test_file());
 
         // Run TEST_CLIENTS_NUMBER client process
         for (size_t i = 0; i < TEST_CLIENTS_NUMBER; ++i)
@@ -113,9 +122,11 @@ int main(int argc, char** argv)
         // Start wait for clients and broadcast
         server->run();
 
-        std::cout << "Checking results...\n";
+        std::cout << "Checking results.....";
         compare_files();
-        std::cout << "OK\n";
+        std::cout << "OK\nRemoving generated files.....";
+        remove_files();
+        std::cout << "Finished\nApplication terminated\n";
     }
     catch(const std::exception& e)
     {
