@@ -3,16 +3,18 @@
 constexpr char SHARED_MEMORY_TEST_SYNC_NAME[] = "/test_sync";
 constexpr char TEST_BROADCAST_FILE_NAME[] = "test_broadcast_file.broadcast_data";
 constexpr size_t TEST_BROADCAST_FILE_SIZE = 1024 * 1024 * 100;
-constexpr unsigned TEST_CLIENTS_NUMBER = 40;
+constexpr unsigned TEST_CLIENTS_NUMBER = 10;
 
 struct TestSync
 {
     void init()
     {
         mutex = get_ipc_mutex();
+        cond_var = get_ipc_cond_var();
         value = 0;
     }
     pthread_mutex_t mutex;
+    pthread_cond_t cond_var;
     int value;
 };
 
@@ -37,18 +39,36 @@ void wait_for_server_init()
     pthread_mutex_unlock(&client_connect_data->mutex);
 }
 
+void wait_fo_clients_finished()
+{
+    auto sh_sync = SharedMemory<TestSync>::open(SHARED_MEMORY_TEST_SYNC_NAME);
+    auto sync = sh_sync->data();
+    pthread_mutex_lock(&sync->mutex);
+    while(sync->value)
+        pthread_cond_wait(&sync->cond_var, &sync->mutex);
+    pthread_mutex_unlock(&sync->mutex);
+}
+
 int run_client()
 {
     wait_for_server_init();
-    auto sh_child_sync = SharedMemory<TestSync>::open(SHARED_MEMORY_TEST_SYNC_NAME);
-    auto child_sync = sh_child_sync->data();
+    auto sh_sync = SharedMemory<TestSync>::open(SHARED_MEMORY_TEST_SYNC_NAME);
+    auto sync = sh_sync->data();
 
-    pthread_mutex_lock(&child_sync->mutex);
-        int cur_val = ++child_sync->value;
+    pthread_mutex_lock(&sync->mutex);
+        int cur_val = ++sync->value;
         auto client = Client::create(std::to_string(cur_val) + ".broadcast_result",
                                     cur_val == TEST_CLIENTS_NUMBER);
-    pthread_mutex_unlock(&child_sync->mutex);
+    pthread_mutex_unlock(&sync->mutex);
+
     client->run();
+
+    pthread_mutex_lock(&sync->mutex);
+    {
+        --sync->value;
+        pthread_cond_signal(&sync->cond_var);
+    }
+    pthread_mutex_unlock(&sync->mutex);
     return 0;
 }
 
@@ -119,7 +139,7 @@ int main(int argc, char** argv)
             }
         }
 
-        // Start wait for clients and broadcast
+        // Wait for clients and start broadcasting once recive "start" signal
         server->run();
 
         std::cout << "Checking results.....";
@@ -127,6 +147,9 @@ int main(int argc, char** argv)
         std::cout << "OK\nRemoving generated files.....";
         remove_files();
         std::cout << "Finished\nApplication terminated\n";
+
+        //Keep server alive untill all clients finished
+        wait_fo_clients_finished();
     }
     catch(const std::exception& e)
     {
