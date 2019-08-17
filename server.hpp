@@ -116,7 +116,7 @@ private:
     inline unsigned wait_for_clients()
     {
          auto client_connect_data = m_sh_mem_client_connect_data->data();
-         LOGGER << "Wating for clients...\n";
+         std::cout << "Wating for clients...\n";
          unsigned clients = 0;
          pthread_mutex_lock(&client_connect_data->mutex);
          {

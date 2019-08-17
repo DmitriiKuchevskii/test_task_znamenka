@@ -90,27 +90,26 @@ public:
         std::string m_message;
     };
 
-    inline static std::shared_ptr<SharedMemory<T>> create(std::string name, size_t size = 1)
+    inline static std::shared_ptr<SharedMemory<T>> create(const std::string& name, size_t size = 1)
     {
         return std::shared_ptr<SharedMemory<T>>(new SharedMemory<T>(name, size,
             O_RDWR | O_CREAT, S_IRWXU, PROT_READ | PROT_WRITE, MAP_SHARED));
     }
 
-    inline static std::shared_ptr<SharedMemory<T>> open(std::string name)
+    inline static std::shared_ptr<SharedMemory<T>> open(const std::string& name)
     {
         return std::shared_ptr<SharedMemory<T>>(new SharedMemory<T>(name, -1,
             O_RDWR, S_IRWXU, PROT_READ | PROT_WRITE, MAP_SHARED));
     }
 
 private:
-    inline SharedMemory(std::string name, size_t size,
+    inline SharedMemory(const std::string& name, size_t size,
                         int oflags, int omode, int mflags, int mmode) :
-        m_name(std::move(name)),
         m_size(size),
         m_mflags(mflags),
         m_mmode(mmode)
     {
-        m_sh_mem_descriptor = shm_open(m_name.c_str(), oflags, omode);
+        m_sh_mem_descriptor = shm_open(name.c_str(), oflags, omode);
 
         if (m_sh_mem_descriptor == -1)
             throw SharedMemoryException("Can not open shared memory object.");
@@ -140,11 +139,6 @@ public:
         munmap(m_data, m_size);
     }
 
-    inline const std::string& name() const
-    {
-        return m_name;
-    }
-
     inline T* data()
     {
         return m_data;
@@ -160,30 +154,7 @@ public:
         return m_size;
     }
 
-    inline T& operator[](size_t indes)
-    {
-        return m_data[index];
-    }
-
-    inline const T& operator[](size_t index) const
-    {
-        return m_data[index];
-    }
-
-    inline void resize(size_t size)
-    {
-        if (munmap(m_data, m_size) || ftruncate(m_sh_mem_descriptor, size * sizeof(T)) == -1)
-                throw SharedMemoryException("Can not resize shared memory.");
-
-        m_data = (T*)mmap(NULL, size * sizeof(T), m_mflags, m_mmode, m_sh_mem_descriptor, 0);
-        if (m_data == nullptr)
-            throw SharedMemoryException("Can not map shared memory to virtual sapce.");
-
-        m_size = size;
-    }
-
 private:
-    std::string m_name;
     size_t m_size = 0;
     T* m_data = nullptr;
     int m_sh_mem_descriptor = -1;

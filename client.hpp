@@ -21,9 +21,9 @@ public:
                                                  bool start_broadcast = false)
     {
         size_t broadcast_file_size = connect(start_broadcast);
-        LOGGER << "Client connected.\nBroadcast " << (!start_broadcast ? "not " : "") << "started.\n";
+        std::cout << "Client connected.\nBroadcast " << (!start_broadcast ? "not " : "") << "started.\n";
         if (!start_broadcast)
-            LOGGER << "Should you want to run broadcasting, you need to provide --start option for client.\n";
+            std::cout << "Should you want to run broadcasting, you need to provide --start option for client.\n";
         LOGGER << "Client will write its output into file '" << recived_file_name << "'\n";
         return std::shared_ptr<Client>(new Client(recived_file_name, broadcast_file_size));
     }
