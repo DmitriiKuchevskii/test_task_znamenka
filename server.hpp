@@ -69,6 +69,11 @@ private:
 public:
     inline ~Server()
     {
+        auto sync = m_sh_mem_sync->data();
+        pthread_mutex_destroy(&sync->mutex);
+        pthread_barrier_destroy(&sync->barier);
+        pthread_cond_destroy(&sync->cond_var);
+
         unlink_shared_memory();
     }
 

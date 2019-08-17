@@ -3,7 +3,7 @@
 constexpr char SHARED_MEMORY_TEST_SYNC_NAME[] = "/test_sync";
 constexpr char TEST_BROADCAST_FILE_NAME[] = "test_broadcast_file.broadcast_data";
 constexpr size_t TEST_BROADCAST_FILE_SIZE = 1024 * 1024 * 100;
-constexpr unsigned TEST_CLIENTS_NUMBER = 10;
+constexpr unsigned TEST_CLIENTS_NUMBER = 40;
 
 struct TestSync
 {
@@ -12,17 +12,30 @@ struct TestSync
         mutex = get_ipc_mutex();
         cond_var = get_ipc_cond_var();
         value = 0;
+        sh_mem_initialized = false;
     }
     pthread_mutex_t mutex;
     pthread_cond_t cond_var;
     int value;
+    bool sh_mem_initialized;
 };
+std::shared_ptr<SharedMemory<TestSync>> g_test_sync_ptr;
+TestSync* g_test_sync;
 
 void init_test_shared_memory_sync()
 {
     shm_unlink(SHARED_MEMORY_TEST_SYNC_NAME);
-    auto sh_sync = SharedMemory<TestSync>::create(SHARED_MEMORY_TEST_SYNC_NAME);
-    sh_sync->data()->init();
+    g_test_sync_ptr = SharedMemory<TestSync>::create(SHARED_MEMORY_TEST_SYNC_NAME);
+    g_test_sync = g_test_sync_ptr->data();
+    g_test_sync->init();
+}
+
+void wait_for_server_shared_memory_init()
+{
+    pthread_mutex_lock(&g_test_sync->mutex);
+        while(!g_test_sync->sh_mem_initialized)
+            pthread_cond_wait(&g_test_sync->cond_var, &g_test_sync->mutex);
+    pthread_mutex_unlock(&g_test_sync->mutex);
 }
 
 void wait_for_server_init()
@@ -41,15 +54,14 @@ void wait_for_server_init()
 
 int run_client()
 {
+    wait_for_server_shared_memory_init();
     wait_for_server_init();
-    auto sh_sync = SharedMemory<TestSync>::open(SHARED_MEMORY_TEST_SYNC_NAME);
-    auto sync = sh_sync->data();
 
-    pthread_mutex_lock(&sync->mutex);
-        int cur_val = ++sync->value;
+    pthread_mutex_lock(&g_test_sync->mutex);
+        int cur_val = ++g_test_sync->value;
         auto client = Client::create(std::to_string(cur_val) + ".broadcast_result",
                                     cur_val == TEST_CLIENTS_NUMBER);
-    pthread_mutex_unlock(&sync->mutex);
+    pthread_mutex_unlock(&g_test_sync->mutex);
 
     client->run();
     return 0;
@@ -107,16 +119,38 @@ auto remove_files()
     return unremoved_files;
 }
 
+void test_results()
+{
+    std::cout << "Broadcast completed.\nChecking results.....";
+    compare_files();
+    std::cout << "OK\nRemoving generated files.....";
+    auto unremoved_files = remove_files();
+    if (!unremoved_files.size())
+    {
+        std::cout << "All generated files have been succesfully removed.\n";
+    }
+    else
+    {
+        std::cout << "An error accured." 
+                  << " Only " << TEST_CLIENTS_NUMBER - unremoved_files.size() 
+                  << " out of" << TEST_CLIENTS_NUMBER << " have been removed. "
+                  << "Can not remove the following files:\n";
+        for (const auto& file : unremoved_files)
+            std::cout << file << "\n";
+    }
+}
+
 int main(int argc, char** argv)
 {
     try
     {
         init_test_shared_memory_sync();
 
-        // Init server shared memory
-        auto server = Server::create(create_test_file());
+        // We want to create a server in parent process
+        // and all clients in child processes
+        std::shared_ptr<Server> server;
 
-        // Run TEST_CLIENTS_NUMBER client process
+        // Run TEST_CLIENTS_NUMBER client process (child processes)
         for (size_t i = 0; i < TEST_CLIENTS_NUMBER; ++i)
         {
             if (!fork())
@@ -125,26 +159,21 @@ int main(int argc, char** argv)
             }
         }
 
-        // Wait for clients and start broadcasting once recive "start" signal
+        // Init shared memory (parent process)
+        server = Server::create(create_test_file());
+
+        //Signal child processes that they can access server's shared memory
+        pthread_mutex_lock(&g_test_sync->mutex);
+            g_test_sync->sh_mem_initialized = true;
+            pthread_cond_broadcast(&g_test_sync->cond_var);
+        pthread_mutex_unlock(&g_test_sync->mutex);
+
+        // Wait for clients and start broadcasting
+        // once recive "start" signal from client
         server->run();
 
-        std::cout << "Broadcast completed.\nChecking results.....";
-        compare_files();
-        std::cout << "OK\nRemoving generated files.....";
-        auto unremoved_files = remove_files();
-        if (!unremoved_files.size())
-        {
-            std::cout << "All generated files have been succesfully removed.\n";
-        }
-        else
-        {
-            std::cout << "An error accured." 
-                      << " Only " << TEST_CLIENTS_NUMBER - unremoved_files.size() 
-                      << " out of" << TEST_CLIENTS_NUMBER << " have been removed. "
-                      << "Can not remove the following files:\n";
-            for (const auto& file : unremoved_files)
-                std::cout << file << "\n";
-        }
+        // Check if produced files are binary same compare to server's input file
+        test_results();
     }
     catch(const std::exception& e)
     {
