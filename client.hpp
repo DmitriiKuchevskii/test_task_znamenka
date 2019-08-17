@@ -49,11 +49,12 @@ public:
     inline void run()
     {
         std::ofstream file(m_recived_file_name, std::ios::binary);
+        size_t sh_mem_data_size = m_sh_mem_data->size();
 
-        for (size_t i = 0; i < m_recived_file_size / m_sh_mem_data->size(); ++i)
-            recive(file, m_sh_mem_data->size());
+        for (size_t i = 0; i < m_recived_file_size / sh_mem_data_size; ++i)
+            recive(file, sh_mem_data_size);
 
-        size_t remain = m_recived_file_size % m_sh_mem_data->size();
+        size_t remain = m_recived_file_size % sh_mem_data_size;
         if (remain)
             recive(file, remain);
     }
@@ -70,7 +71,7 @@ private:
         }
         pthread_mutex_unlock(&sync->mutex);
 
-        file_stream.write(m_sh_mem_data->data(), m_sh_mem_data->size());
+        file_stream.write(m_sh_mem_data->data(), size);
 
         pthread_mutex_lock(&sync->mutex);
         {

@@ -39,16 +39,6 @@ void wait_for_server_init()
     pthread_mutex_unlock(&client_connect_data->mutex);
 }
 
-void wait_fo_clients_finished()
-{
-    auto sh_sync = SharedMemory<TestSync>::open(SHARED_MEMORY_TEST_SYNC_NAME);
-    auto sync = sh_sync->data();
-    pthread_mutex_lock(&sync->mutex);
-    while(sync->value)
-        pthread_cond_wait(&sync->cond_var, &sync->mutex);
-    pthread_mutex_unlock(&sync->mutex);
-}
-
 int run_client()
 {
     wait_for_server_init();
@@ -62,13 +52,6 @@ int run_client()
     pthread_mutex_unlock(&sync->mutex);
 
     client->run();
-
-    pthread_mutex_lock(&sync->mutex);
-    {
-        --sync->value;
-        pthread_cond_signal(&sync->cond_var);
-    }
-    pthread_mutex_unlock(&sync->mutex);
     return 0;
 }
 
@@ -112,13 +95,16 @@ void compare_files()
     }
 }
 
-void remove_files()
+auto remove_files()
 {
+    std::vector<std::string> unremoved_files;
     for (size_t i = 1; i <= TEST_CLIENTS_NUMBER; ++i)
     {
         std::string result_file = std::to_string(i) + ".broadcast_result";
-        remove(result_file.c_str());
+        if (remove(result_file.c_str()))
+            unremoved_files.push_back(result_file);
     }
+    return unremoved_files;
 }
 
 int main(int argc, char** argv)
@@ -142,14 +128,23 @@ int main(int argc, char** argv)
         // Wait for clients and start broadcasting once recive "start" signal
         server->run();
 
-        std::cout << "Checking results.....";
+        std::cout << "Broadcast completed.\nChecking results.....";
         compare_files();
         std::cout << "OK\nRemoving generated files.....";
-        remove_files();
-        std::cout << "Finished\nApplication terminated\n";
-
-        //Keep server alive untill all clients finished
-        wait_fo_clients_finished();
+        auto unremoved_files = remove_files();
+        if (!unremoved_files.size())
+        {
+            std::cout << "All generated files have been succesfully removed.\n";
+        }
+        else
+        {
+            std::cout << "An error accured." 
+                      << " Only " << TEST_CLIENTS_NUMBER - unremoved_files.size() 
+                      << " out of" << TEST_CLIENTS_NUMBER << " have been removed. "
+                      << "Can not remove the following files:\n";
+            for (const auto& file : unremoved_files)
+                std::cout << file << "\n";
+        }
     }
     catch(const std::exception& e)
     {

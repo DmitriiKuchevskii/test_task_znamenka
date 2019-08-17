@@ -69,33 +69,23 @@ private:
 public:
     inline ~Server()
     {
-        auto sync = m_sh_mem_sync->data();
-        pthread_mutex_destroy(&sync->mutex);
-        pthread_barrier_destroy(&sync->barier);
-        pthread_cond_destroy(&sync->cond_var);
-
         unlink_shared_memory();
     }
 
     inline void run()
     {
         unsigned clients_number = wait_for_clients();
-        m_sh_mem_sync->data()->barier = get_ipc_barier(clients_number);
+        m_sh_mem_sync->data()->barier = get_ipc_barier(clients_number + 1);
 
         std::ifstream file_stream(m_broadcast_file_name, std::ios::binary);
         size_t file_size = get_file_size(m_broadcast_file_name);
 
         for (size_t i = 0; i < file_size / m_sh_mem_data->size(); ++i)
-        {
             broadcast_data(file_stream, m_sh_mem_data->size(), clients_number);
-        }
 
         size_t remain = file_size % m_sh_mem_data->size();
         if (remain)
-        {
-            m_sh_mem_data->resize(remain);
             broadcast_data(file_stream, remain, clients_number);
-        }
     }
 
 private:

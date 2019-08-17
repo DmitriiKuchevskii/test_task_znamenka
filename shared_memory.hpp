@@ -55,7 +55,7 @@ inline pthread_barrier_t get_ipc_barier(unsigned value)
     pthread_barrierattr_t barier_attr;
     pthread_barrierattr_init(&barier_attr);
     pthread_barrierattr_setpshared(&barier_attr, PTHREAD_PROCESS_SHARED);
-    pthread_barrier_init(&barier, &barier_attr, value + 1);
+    pthread_barrier_init(&barier, &barier_attr, value);
     return barier;
 }
 
