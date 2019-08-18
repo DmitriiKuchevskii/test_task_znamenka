@@ -1,3 +1,10 @@
+# Requirements
+Should work on any POSIX system with decent C++17 compiler 
+Tested on:
+ - Ubuntu 18.04.2 LTS (GNU/Linux 4.15.0-1044-aws x86_64) / g++ (Ubuntu 8.3.0-6ubuntu1) 8.3.0
+ - Ubuntu 19.04 (GNU/Linux 5.0.0-25-generic x86_64) / g++ (Ubuntu 8.3.0-6ubuntu1) 8.3.0
+ - Ubuntu 19.04 (GNU/Linux 5.0.0-25-generic x86_64) / clang++ 8.0.0-3 (tags/RELEASE_800/final)
+
 # Build
 The following command will build three executable: **server**, **client** and **test**
 > sh build.sh
