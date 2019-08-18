@@ -88,7 +88,7 @@ int run_client()
     pthread_mutex_lock(&g_test_sync->mutex);
         std::cout
         << "---------------------------------------------------------------------------------------------------------\n"
-        << "Client(PID: " << getpid() << "):\n"
+        << "Client's(PID: " << getpid() << ") 90th percentile statistic:\n"
         << "Latecy_1 (FROM Server started read chunk of data TO Client finished write chunk of data): " << l1 << " microsec\n"
         << "Latecy_2 (FROM Server finished write into SHM TO Client started read from SHM): " << l2 << " microsec\n"
         << "---------------------------------------------------------------------------------------------------------\n";
