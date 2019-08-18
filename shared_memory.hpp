@@ -132,7 +132,7 @@ private:
 
         m_data = (T*)mmap(NULL, m_size * sizeof(T), mflags, mmode, m_sh_mem_descriptor, 0);
         if (m_data == nullptr)
-            throw SharedMemoryException("Can not map shared memory to virtual sapce.");
+            throw SharedMemoryException("Can not map shared memory to virtual space.");
     }
 
 public:

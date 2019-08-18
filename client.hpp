@@ -5,7 +5,7 @@
 class Client
 {
 private:
-    Client(std::string recived_file_name, size_t size) :
+    inline Client(std::string recived_file_name, size_t size) :
         m_sh_mem_data(
             SharedMemory<char>::open(Server::SERVER_SHARED_MEMORY_DATA_NAME)
         ),
@@ -46,7 +46,7 @@ private:
     }
 
 public:
-    auto run()
+    inline auto run()
     {
         std::ofstream file(m_recived_file_name, std::ios::binary);
         size_t sh_mem_data_size = m_sh_mem_data->size();
@@ -83,10 +83,6 @@ private:
         size_t l1 = duration_cast<microseconds>(t2 - t0_1).count();
         size_t l2 = duration_cast<microseconds>(t1 - t0_2).count();
         m_latency_stat.push_back({l1, l2});
-        // std::cout << "Latecy_1 (FROM Server started read from file TO Client finished write to file): " 
-        //           << duration_cast<microseconds>(t2 - t0_1).count() << "mms\n";
-        // std::cout << "Latecy_2 (FROM Server finished write into shm TO Client started read from shm): "
-        //           << duration_cast<microseconds>(t1 - t0_2).count() << "mms\n";
 
         pthread_mutex_lock(&sync->mutex);
         {
