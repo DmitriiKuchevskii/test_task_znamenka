@@ -4,8 +4,9 @@
 
 constexpr char SHARED_MEMORY_TEST_SYNC_NAME[] = "/test_sync";
 constexpr char TEST_BROADCAST_FILE_NAME[] = "test_broadcast_file.broadcast_data";
+constexpr size_t TEST_MESSAGE_SIZE = 1024 * 1024;
 constexpr size_t TEST_BROADCAST_FILE_SIZE = 1024 * 1024 * 100;
-constexpr unsigned TEST_CLIENTS_NUMBER = 10;
+unsigned TEST_CLIENTS_NUMBER = 0;
 
 struct TestSync
 {
@@ -62,29 +63,23 @@ int run_client()
     wait_for_server_init();
 
     pthread_mutex_lock(&g_test_sync->mutex);
-        int cur_val = ++g_test_sync->value;
+        unsigned cur_val = ++g_test_sync->value;
         auto client = Client::create(std::to_string(cur_val) + ".broadcast_result",
                                     cur_val == TEST_CLIENTS_NUMBER);
     pthread_mutex_unlock(&g_test_sync->mutex);
 
     auto latency_stat = client->run();
     size_t percentile_90th = size_t(0.1 * latency_stat.size());
-    std::sort(std::begin(latency_stat), 
-                     // std::begin(latency_stat) + percentile_90th,
-                     std::end(latency_stat),
-                     [](const auto& e1, const auto& e2)
+    std::sort(std::begin(latency_stat), std::end(latency_stat), [](const auto& e1, const auto& e2)
     {
         return e1.first < e2.first;
     });
-    size_t l1 = latency_stat[percentile_90th - 1].first;
-    std::sort(std::begin(latency_stat), 
-                     // std::begin(latency_stat) + percentile_90th,
-                     std::end(latency_stat),
-                     [](const auto& e1, const auto& e2)
+    size_t l1 = latency_stat[percentile_90th].first;
+    std::sort(std::begin(latency_stat), std::end(latency_stat), [](const auto& e1, const auto& e2)
     {
-        return e2.second < e2.second;
+        return e1.second < e2.second;
     });
-    size_t l2 = latency_stat[percentile_90th - 1].second;
+    size_t l2 = latency_stat[percentile_90th].second;
     pthread_mutex_lock(&g_test_sync->mutex);
         std::cout
         << "---------------------------------------------------------------------------------------------------------\n"
@@ -178,6 +173,10 @@ int main(int argc, char** argv)
 {
     try
     {
+        TEST_CLIENTS_NUMBER = argc < 2 ? 10 : std::stoi(argv[1]);
+        std::cout << "Test with " << TEST_CLIENTS_NUMBER << " clients\n"
+                  << "Broadcasting " << 1.0 * TEST_BROADCAST_FILE_SIZE / (1024 * 1024) << " MB\n"
+                  << "Message size is " << 1.0 * TEST_MESSAGE_SIZE / (1024 * 1024) << " MB\n";
         init_test_shared_memory_sync();
 
         // We want to create a server in parent process
@@ -194,7 +193,7 @@ int main(int argc, char** argv)
         }
 
         // Init shared memory (parent process)
-        server = Server::create(create_test_file());
+        server = Server::create(create_test_file(), TEST_MESSAGE_SIZE);
 
         //Signal child processes that they can access server's shared memory
         pthread_mutex_lock(&g_test_sync->mutex);
@@ -208,6 +207,11 @@ int main(int argc, char** argv)
 
         // Check if produced files are binary same compare to server's input file
         test_results();
+    }
+    catch(const std::invalid_argument&)
+    {
+        std::cout << "Number of clients is incorrect\n";
+        exit(EXIT_FAILURE);
     }
     catch(const std::exception& e)
     {
