@@ -96,8 +96,15 @@ public:
 private:
     inline void broadcast_data(std::istream& file_stream, size_t size, unsigned clients)
     {
+        using namespace std::chrono;
         auto sync = m_sh_mem_sync->data();
+
+        auto t1 = system_clock::now();
         file_stream.read(m_sh_mem_data->data(), size);
+        auto t2 = system_clock::now();
+
+        sync->time_before_write_into_shm = t1;
+        sync->time_after_write_into_shm = t2;
 
         pthread_mutex_lock(&sync->mutex);
         {

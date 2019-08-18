@@ -1,9 +1,11 @@
+#include <algorithm>
+
 #include "client.hpp"
 
 constexpr char SHARED_MEMORY_TEST_SYNC_NAME[] = "/test_sync";
 constexpr char TEST_BROADCAST_FILE_NAME[] = "test_broadcast_file.broadcast_data";
 constexpr size_t TEST_BROADCAST_FILE_SIZE = 1024 * 1024 * 100;
-constexpr unsigned TEST_CLIENTS_NUMBER = 40;
+constexpr unsigned TEST_CLIENTS_NUMBER = 10;
 
 struct TestSync
 {
@@ -11,11 +13,13 @@ struct TestSync
     {
         mutex = get_ipc_mutex();
         cond_var = get_ipc_cond_var();
+        barier = get_ipc_barier(TEST_CLIENTS_NUMBER + 1);
         value = 0;
         sh_mem_initialized = false;
     }
     pthread_mutex_t mutex;
     pthread_cond_t cond_var;
+    pthread_barrier_t barier;
     int value;
     bool sh_mem_initialized;
 };
@@ -63,7 +67,35 @@ int run_client()
                                     cur_val == TEST_CLIENTS_NUMBER);
     pthread_mutex_unlock(&g_test_sync->mutex);
 
-    client->run();
+    auto latency_stat = client->run();
+    size_t percentile_90th = size_t(0.1 * latency_stat.size());
+    std::sort(std::begin(latency_stat), 
+                     // std::begin(latency_stat) + percentile_90th,
+                     std::end(latency_stat),
+                     [](const auto& e1, const auto& e2)
+    {
+        return e1.first < e2.first;
+    });
+    size_t l1 = latency_stat[percentile_90th - 1].first;
+    std::sort(std::begin(latency_stat), 
+                     // std::begin(latency_stat) + percentile_90th,
+                     std::end(latency_stat),
+                     [](const auto& e1, const auto& e2)
+    {
+        return e2.second < e2.second;
+    });
+    size_t l2 = latency_stat[percentile_90th - 1].second;
+    pthread_mutex_lock(&g_test_sync->mutex);
+        std::cout
+        << "---------------------------------------------------------------------------------------------------------\n"
+        << "Client(PID: " << getpid() << "):\n"
+        << "Latecy_1 (FROM Server started read chunk of data TO Client finished write chunk of data): " << l1 << " microsec\n"
+        << "Latecy_2 (FROM Server finished write into SHM TO Client started read from SHM): " << l2 << " microsec\n"
+        << "---------------------------------------------------------------------------------------------------------\n";
+    pthread_mutex_unlock(&g_test_sync->mutex);
+
+    // Wait for all reports displayed
+    pthread_barrier_wait(&g_test_sync->barier);
     return 0;
 }
 
@@ -121,6 +153,8 @@ auto remove_files()
 
 void test_results()
 {
+     // Wait for all reports displayed
+    pthread_barrier_wait(&g_test_sync->barier);
     std::cout << "Broadcast completed.\nChecking results.....";
     compare_files();
     std::cout << "OK\nRemoving generated files.....";

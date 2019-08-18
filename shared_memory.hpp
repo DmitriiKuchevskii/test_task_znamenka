@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
+#include <chrono>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -66,6 +67,8 @@ struct SharedMemorySyncObjects
     pthread_barrier_t barier;
     bool write_compleate;
     unsigned read_compleate;
+    std::chrono::time_point<std::chrono::system_clock> time_before_write_into_shm;
+    std::chrono::time_point<std::chrono::system_clock> time_after_write_into_shm;
 };
 
 template <typename T>

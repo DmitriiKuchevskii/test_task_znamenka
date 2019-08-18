@@ -46,7 +46,7 @@ private:
     }
 
 public:
-    inline void run()
+    auto run()
     {
         std::ofstream file(m_recived_file_name, std::ios::binary);
         size_t sh_mem_data_size = m_sh_mem_data->size();
@@ -57,11 +57,14 @@ public:
         size_t remain = m_recived_file_size % sh_mem_data_size;
         if (remain)
             recive(file, remain);
+
+        return m_latency_stat;
     }
 
 private:
     inline void recive(std::ostream& file_stream, size_t size)
     {
+        using namespace std::chrono;
         auto sync = m_sh_mem_sync->data();
 
         pthread_mutex_lock(&sync->mutex);
@@ -71,7 +74,19 @@ private:
         }
         pthread_mutex_unlock(&sync->mutex);
 
+        auto t1 = system_clock::now();
         file_stream.write(m_sh_mem_data->data(), size);
+        auto t2 = system_clock::now();
+
+        auto t0_1 = sync->time_before_write_into_shm;
+        auto t0_2 = sync->time_after_write_into_shm;
+        size_t l1 = duration_cast<microseconds>(t2 - t0_1).count();
+        size_t l2 = duration_cast<microseconds>(t1 - t0_2).count();
+        m_latency_stat.push_back({l1, l2});
+        // std::cout << "Latecy_1 (FROM Server started read from file TO Client finished write to file): " 
+        //           << duration_cast<microseconds>(t2 - t0_1).count() << "mms\n";
+        // std::cout << "Latecy_2 (FROM Server finished write into shm TO Client started read from shm): "
+        //           << duration_cast<microseconds>(t1 - t0_2).count() << "mms\n";
 
         pthread_mutex_lock(&sync->mutex);
         {
@@ -88,4 +103,5 @@ private:
     std::shared_ptr<SharedMemory<SharedMemorySyncObjects>> m_sh_mem_sync;
     std::string m_recived_file_name;
     size_t m_recived_file_size;
+    std::vector<std::pair<size_t, size_t>> m_latency_stat;
 };
