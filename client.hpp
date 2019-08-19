@@ -2,6 +2,51 @@
 
 #include "server.hpp"
 
+class BufferedWriteStream
+{
+public:
+    inline BufferedWriteStream(const std::string& name) :
+        m_file(fopen(name.c_str(), "wb")),
+        m_buff(1024 * 1024 * 3) // 3 MB
+    {}
+
+    inline ~BufferedWriteStream()
+    {
+        if (m_cur)
+            fwrite(m_buff.data(), sizeof(char), m_cur, m_file);
+    }
+
+    inline size_t write(const char* data, size_t size)
+    {
+        if (size + m_cur < m_buff.size())
+        {
+            memcpy(m_buff.data() + m_cur, data, size);
+            m_cur += size;
+            return size;
+        }
+        else
+        {
+            size_t written = fwrite(m_buff.data(), sizeof(char), m_cur, m_file);
+            m_cur = 0;
+            if (size < m_buff.size())
+            {
+                memcpy(m_buff.data(), data, size);
+                m_cur = size;
+                return m_cur + written;
+            }
+            else
+            {
+                return written + fwrite(data, sizeof(char), size, m_file);
+            }
+        }
+    }
+
+private:
+    FILE* m_file = nullptr;
+    std::vector<char> m_buff;
+    size_t m_cur = 0;
+};
+
 class Client
 {
 private:
@@ -48,7 +93,7 @@ private:
 public:
     inline auto run()
     {
-        std::ofstream file(m_recived_file_name, std::ios::binary);
+        BufferedWriteStream file(m_recived_file_name);
         size_t sh_mem_data_size = m_sh_mem_data->size();
 
         for (size_t i = 0; i < m_recived_file_size / sh_mem_data_size; ++i)
@@ -62,7 +107,7 @@ public:
     }
 
 private:
-    inline void recive(std::ostream& file_stream, size_t size)
+    inline void recive(auto& file_stream, size_t size)
     {
         using namespace std::chrono;
         auto sync = m_sh_mem_sync->data();

@@ -4,6 +4,60 @@
 
 #include "shared_memory.hpp"
 
+class BufferedReadStream
+{
+public:
+    inline BufferedReadStream(const std::string& name) :
+        m_file(fopen(name.c_str(), "rb")),
+        m_buff(1024 * 1024 * 3) // 3 MB
+    {
+        m_buff.resize(
+            fread(m_buff.data(), sizeof(char), m_buff.size(), m_file)
+        );
+    }
+
+    inline size_t read(char* data, size_t size)
+    {
+        if (size + m_cur < m_buff.size())
+        {
+            memcpy(data, m_buff.data() + m_cur, size);
+            m_cur += size;
+            return size;
+        }
+        else
+        {
+            size_t read = m_buff.size() - m_cur;
+            size_t remain = size - read;
+            memcpy(data, m_buff.data() + m_cur, read);
+            data += read;
+
+            if (remain < m_buff.size())
+            {
+                m_buff.resize(
+                    fread(m_buff.data(), sizeof(char), m_buff.size(), m_file)
+                );
+                m_cur = std::min(remain, m_buff.size());
+                memcpy(data, m_buff.data(), m_cur);
+                return m_cur + read;
+            }
+            else
+            {
+                size_t result = read + fread(data, sizeof(char), remain, m_file);
+                m_cur = 0;
+                m_buff.resize(
+                    fread(m_buff.data(), sizeof(char), m_buff.size(), m_file)
+                );
+                return result;
+            }
+        }
+    }
+
+private:
+    FILE* m_file = nullptr;
+    std::vector<char> m_buff;
+    size_t m_cur = 0;
+};
+
 class Server
 {
 public:
@@ -82,7 +136,7 @@ public:
         unsigned clients_number = wait_for_clients();
         m_sh_mem_sync->data()->barier = get_ipc_barier(clients_number + 1);
 
-        std::ifstream file_stream(m_broadcast_file_name, std::ios::binary);
+        BufferedReadStream file_stream(m_broadcast_file_name);
         size_t file_size = get_file_size(m_broadcast_file_name);
 
         for (size_t i = 0; i < file_size / m_sh_mem_data->size(); ++i)
@@ -94,17 +148,14 @@ public:
     }
 
 private:
-    inline void broadcast_data(std::istream& file_stream, size_t size, unsigned clients)
+    inline void broadcast_data(auto& file_stream, size_t size, unsigned clients)
     {
         using namespace std::chrono;
         auto sync = m_sh_mem_sync->data();
 
-        auto t1 = system_clock::now();
+        sync->time_before_write_into_shm = system_clock::now();
         file_stream.read(m_sh_mem_data->data(), size);
-        auto t2 = system_clock::now();
-
-        sync->time_before_write_into_shm = t1;
-        sync->time_after_write_into_shm = t2;
+        sync->time_after_write_into_shm = system_clock::now();
 
         pthread_mutex_lock(&sync->mutex);
         {
